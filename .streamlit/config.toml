@@ -1,0 +1,5 @@
+[client]
+# Hide Streamlit's own developer toolbar (Deploy / ⋮ menu) from viewers.
+# The Community Cloud "Fork" + GitHub badge is injected by the host and
+# survives this, so streamlit_app.py also hides the header with CSS.
+toolbarMode = "minimal"

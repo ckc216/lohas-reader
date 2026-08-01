@@ -8,6 +8,25 @@ from lohas_reader.library import LIBRARY, get_entry
 
 st.set_page_config(page_title="lohas-reader", page_icon="📖", layout="centered")
 
+# Hide Streamlit's top chrome — the sticky header, its toolbar and the
+# Community Cloud "Fork"/GitHub badge — so the full screen goes to the text.
+# ``config.toml`` alone isn't enough: the badge is injected by the host, not by
+# Streamlit's own toolbar. The header is what the default top padding leaves
+# room for, so reclaim that too. A style-only ``st.html`` renders into the
+# event container and takes up no space of its own.
+st.html(
+    """
+    <style>
+      header[data-testid="stHeader"],
+      [data-testid="stToolbar"],
+      [data-testid="stDecoration"] { display: none !important; }
+      [data-testid="stMainBlockContainer"], .block-container {
+        padding-top: 1.5rem !important;
+      }
+    </style>
+    """
+)
+
 # Chapter list: how many to show at first, how many to reveal per scroll, and
 # how many buttons per row.
 INITIAL_VISIBLE = 100
