@@ -1,6 +1,7 @@
 """lohas-reader — read web novels scraped on demand from novel543.com."""
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 from lohas_reader import scraper
 from lohas_reader.library import LIBRARY, get_entry
@@ -80,19 +81,49 @@ def _autoload_on_scroll(label: str, nonce: str):
 
 
 def _scroll_to_top(anchor: str):
-    """Scroll the reader back to the top (used when the chapter changes)."""
-    st.html(
+    """Scroll the reader back to the top (used when the chapter changes).
+
+    Runs inside a zero-height component iframe rather than ``st.html``: the
+    iframe's srcdoc carries *anchor*, so it reloads — and the script really
+    re-executes — on every chapter, whereas an ``st.html`` block is updated in
+    place and its script only runs on mount.
+
+    A single ``scrollTo`` isn't enough either, because Streamlit restores the
+    previous scroll offset after a rerun and element heights keep settling
+    afterwards. So we pin the top for a short window, releasing as soon as the
+    reader scrolls or clicks.
+    """
+    components.html(
         f"""
         <script>
-          /* anchor:{anchor} — changing this re-runs the script on each chapter */
-          const main = document.querySelector('[data-testid="stMain"]')
-              || document.querySelector('section.main')
-              || document.querySelector('[data-testid="stAppViewContainer"]');
-          if (main) main.scrollTo({{top: 0, behavior: 'auto'}});
-          window.scrollTo({{top: 0, behavior: 'auto'}});
+          /* anchor:{anchor} */
+          (function () {{
+            const doc = window.parent.document;
+            const scrollers = [
+              doc.querySelector('[data-testid="stMain"]'),
+              doc.querySelector('section.main'),
+              doc.scrollingElement,
+            ].filter(Boolean);
+            const events = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+            let stop = false;
+            function release() {{
+              stop = true;
+              events.forEach(e => doc.removeEventListener(e, release));
+            }}
+            events.forEach(
+              e => doc.addEventListener(e, release, {{passive: true}}));
+            const until = Date.now() + 1500;
+            (function pin() {{
+              if (stop) return;
+              scrollers.forEach(el => {{ el.scrollTop = 0; }});
+              window.parent.scrollTo(0, 0);
+              if (Date.now() < until) requestAnimationFrame(pin);
+              else release();
+            }})();
+          }})();
         </script>
         """,
-        unsafe_allow_javascript=True,
+        height=0,
     )
 
 
@@ -191,9 +222,6 @@ def view_reading(book_id: str, chapter_no: int):
         return
     chapter = chapters[chapter_no - 1]
 
-    # Jump to the top whenever we land on a chapter (e.g. after 下一章).
-    _scroll_to_top(f"{book_id}:{chapter_no}")
-
     _nav_buttons(book_id, chapter_no, len(chapters), suffix="top")
 
     st.header(chapter.title)
@@ -204,6 +232,10 @@ def view_reading(book_id: str, chapter_no: int):
 
     st.divider()
     _nav_buttons(book_id, chapter_no, len(chapters), suffix="bottom")
+
+    # Jump to the top whenever we land on a chapter (e.g. after 下一章). Done
+    # last, so the chapter is fully laid out before we reset the offset.
+    _scroll_to_top(f"{book_id}:{chapter_no}")
 
 
 # --- Router -------------------------------------------------------------------
