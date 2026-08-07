@@ -27,10 +27,7 @@ st.html(
     """
 )
 
-# Chapter list: how many to show at first, how many to reveal per scroll, and
-# how many buttons per row.
-INITIAL_VISIBLE = 100
-LOAD_STEP = 100
+# Chapter list: how many buttons per row.
 CHAPTER_COLS = 3
 
 
@@ -56,47 +53,6 @@ def _go(book_id: str | None, chapter: int | None):
     st.session_state.book_id = book_id
     st.session_state.chapter = chapter
     st.rerun()
-
-
-def _autoload_on_scroll(label: str, nonce: str):
-    """Click the *label* button automatically when the reader nears the bottom.
-
-    Streamlit has no native infinite scroll, so we attach a scroll listener to
-    the main container and click the "load more" button when the user scrolls
-    close to the end. ``st.html`` runs inline in the app document (not iframed),
-    so the listener persists across reruns; we replace any previous listener to
-    avoid stacking and use a time-based debounce instead of a one-shot flag.
-    """
-    st.html(
-        f"""
-        <script>
-          /* nonce:{nonce} */
-          const scroller = document.querySelector('[data-testid="stMain"]')
-              || document.querySelector('section.main')
-              || document.scrollingElement || document.documentElement;
-          function findBtn() {{
-            return Array.from(document.querySelectorAll('button'))
-              .find(b => (b.innerText || '').trim() === {label!r});
-          }}
-          let last = 0;
-          function onScroll() {{
-            if (Date.now() - last < 800) return;  // debounce
-            if (scroller.scrollTop + scroller.clientHeight
-                    >= scroller.scrollHeight - 1200) {{
-              const btn = findBtn();
-              if (btn) {{ last = Date.now(); btn.click(); }}
-            }}
-          }}
-          if (scroller.__lohasScroll)
-            scroller.removeEventListener('scroll', scroller.__lohasScroll);
-          scroller.__lohasScroll = onScroll;
-          scroller.addEventListener('scroll', onScroll, {{passive: true}});
-          // If the list is shorter than the viewport, load the next batch too.
-          setTimeout(onScroll, 300);
-        </script>
-        """,
-        unsafe_allow_javascript=True,
-    )
 
 
 def _scroll_to_top(anchor: str):
@@ -189,33 +145,24 @@ def view_chapters(book_id: str):
     if jump[1].button("前往", use_container_width=True):
         _go(book_id, int(target))
 
-    # Lazily reveal chapters: start with a batch and grow as the user scrolls.
-    # Reset the counter when switching to a different book.
-    if st.session_state.get("_ch_book") != book_id:
-        st.session_state._ch_book = book_id
-        st.session_state.visible = INITIAL_VISIBLE
+    # Sort order. ``chapters`` comes back in reading order; 反序 shows the
+    # newest first. A deselected segmented control returns None, which falls
+    # back to 正序.
+    order = st.segmented_control(
+        "排序", ["正序", "反序"], default="正序", key="ch_order",
+        label_visibility="collapsed",
+    )
+    listing = list(reversed(chapters)) if order == "反序" else chapters
 
-    total = len(chapters)
-    visible = min(st.session_state.get("visible", INITIAL_VISIBLE), total)
-    shown = chapters[:visible]
-
-    # Render as rows of CHAPTER_COLS buttons. Titles already carry their own
-    # number (e.g. "007：…"), so show them as-is.
-    for i in range(0, len(shown), CHAPTER_COLS):
+    # Render every chapter as rows of CHAPTER_COLS buttons. Titles already
+    # carry their own number (e.g. "007：…"), so show them as-is.
+    for i in range(0, len(listing), CHAPTER_COLS):
         row = st.columns(CHAPTER_COLS)
-        for col, c in zip(row, shown[i:i + CHAPTER_COLS]):
+        for col, c in zip(row, listing[i:i + CHAPTER_COLS]):
             if col.button(c.title, key=f"ch_{c.index}", use_container_width=True):
                 _go(book_id, c.index)
 
-    if visible < total:
-        st.caption(f"已顯示 {visible} / {total} 章")
-        if st.button("載入更多章節", key="load_more", use_container_width=True):
-            st.session_state.visible = min(visible + LOAD_STEP, total)
-            st.rerun()
-        # Auto-click the button above when the user scrolls near the bottom.
-        _autoload_on_scroll("載入更多章節", nonce=f"{book_id}:{visible}")
-    else:
-        st.caption(f"已顯示全部 {total} 章")
+    st.caption(f"已顯示全部 {len(chapters)} 章")
 
 
 def _nav_buttons(book_id: str, chapter_no: int, total: int, suffix: str):
