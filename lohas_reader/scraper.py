@@ -63,8 +63,12 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-# Boilerplate footer lines the site injects into the chapter body.
-_NOISE = re.compile(r"溫馨提示|站內信|手機閱讀|章節報錯|加入書[籤簽]|請記住本站")
+# Boilerplate the site injects into the chapter body. Most of it sits in the
+# footer, but the VIP promo is dropped in at a random paragraph mid-chapter
+# (and only into some requests), so match on text rather than position.
+_NOISE = re.compile(
+    r"溫馨提示|站內信|手機閱讀|章節報錯|加入書[籤簽]|請記住本站|免廣告"
+)
 
 
 def _is_noise(text: str) -> bool:
