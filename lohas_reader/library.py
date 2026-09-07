@@ -22,6 +22,11 @@ LIBRARY: list[LibraryEntry] = [
         title="男主都是戀愛腦，只有我是真修仙",
         author="晨光熹微",
     ),
+    LibraryEntry(
+        book_id="0523664060",
+        title="瞎子雙修女帝，我，背棺葬神！",
+        author="巔峰之",
+    ),
 ]
 
 
